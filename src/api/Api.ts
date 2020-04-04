@@ -112,11 +112,6 @@ class GoogleSheetsDataStrategy implements Strategy {
           prevResult[currentValue] = row[currentValue];
           return prevResult;
         }, {});
-        return {
-          areaCode: row.areaCode,
-          areaName: row.areaName,
-          population: row.population,
-        };
       }
     );
     results.push(...rowResults);
