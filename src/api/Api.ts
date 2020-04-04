@@ -108,8 +108,8 @@ class GoogleSheetsDataStrategy implements Strategy {
     const rowResults = rows.map(
       (row: { [id: string]: string }): Region => {
         // TODO add the types to the line above
-        return regionHeaders.reduce((prevResult, currentValue) => {
-          prevResult[currentValue] = row.currentValue;
+        return regionHeaders.reduce((prevResult, currentValue): Partial<Region> => {
+          prevResult[currentValue] = row[currentValue];
           return prevResult;
         }, {});
         return {
