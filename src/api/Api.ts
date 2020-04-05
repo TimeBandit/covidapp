@@ -129,7 +129,7 @@ class GoogleSheetsDataStrategy implements Strategy {
       const rowResults = rows.map(
         (row: { [id: string]: string }): Report => {
           const count = row[headerString];
-          return { areaCode: row.areaCode, count, date: headerString };
+          return { areaCode: row.areaCode, metricValue: count, date: headerString };
         }
       );
       results.push(...rowResults);
