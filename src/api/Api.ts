@@ -108,15 +108,10 @@ class GoogleSheetsDataStrategy implements Strategy {
     const rowResults = rows.map(
       (row: { [id: string]: string }): Region => {
         // TODO add the types to the line above
-        return regionHeaders.reduce((prevResult, currentValue) => {
-          prevResult[currentValue] = row.currentValue;
+        return regionHeaders.reduce((prevResult, currentValue): Partial<Region> => {
+          prevResult[currentValue] = row[currentValue];
           return prevResult;
         }, {});
-        return {
-          areaCode: row.areaCode,
-          areaName: row.areaName,
-          population: row.population,
-        };
       }
     );
     results.push(...rowResults);
@@ -134,7 +129,7 @@ class GoogleSheetsDataStrategy implements Strategy {
       const rowResults = rows.map(
         (row: { [id: string]: string }): Report => {
           const count = row[headerString];
-          return { areaCode: row.areaCode, count, date: headerString };
+          return { areaCode: row.areaCode, metricValue: count, date: headerString };
         }
       );
       results.push(...rowResults);

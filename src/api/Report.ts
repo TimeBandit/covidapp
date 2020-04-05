@@ -1,6 +1,6 @@
 export interface Report {
   areaCode: string;
-  count: string;
+  metricValue: string;
   date: string;
 }
 export interface Region {
