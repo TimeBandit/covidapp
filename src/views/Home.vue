@@ -1,5 +1,8 @@
 <template>
-  <div class="home">You are home</div>
+  <l-map :zoom="zoom" :bounds="bounds" style="height: 500px; width: 100%">
+    <l-tile-layer :url="url" :attribution="attribution" />
+    <l-geo-json v-if="show" :geojson="geojson" :options="options" :options-style="styleFunction" />
+  </l-map>
 </template>
 
 <script lang="ts">
@@ -9,12 +12,15 @@ enum MetricType {
 }
 
 // @ is an alias to /src
-import { Report, Region } from "@/api/Report";
 import Api from "@/api/Api";
-import L, { LatLngBounds, latLngBounds } from "leaflet";
+import { Report, Region } from "@/api/Report";
 import * as topoClient from "topojson-client";
 import { Topology, TopoJSON } from "topojson-specification";
-import { Vue, Component, Prop } from "vue-property-decorator";
+import * as geojson from "geojson";
+import { latLng } from "leaflet";
+import { LMap, LTileLayer, LGeoJson } from "vue2-leaflet";
+import { Vue, Component, Prop, Watch } from "vue-property-decorator";
+import L, { LatLngBounds, latLngBounds, FeatureGroup } from "leaflet";
 
 const TOPO_JSON_FILE_AND_OBJECT_NAME =
   "Counties_and_Unitary_Authorities_April_2019_Boundaries_EW_BGC";
@@ -23,161 +29,172 @@ const api = Api.getInstance();
 
 // Vue Components.
 @Component({
-  components: {}
+  components: { LMap, LTileLayer, LGeoJson }
 })
 export default class Home extends Vue {
   // Props.
   // Refs.
   // Data.
+  private zoom = 6;
   private loading = false;
-  private reportsCount = 0;
-  private regionsCount = 0;
-  private reports: Report[] = [];
-  private regions: Region[] = [];
-  private geojson: any | null = null;
+  private show = false;
+  private reports: { [key: string]: Report } = {};
+  private regions: { [key: string]: Region } = {};
+  private geojson: geojson.FeatureCollection = {
+    type: "FeatureCollection",
+    features: []
+  };
   private bounds: LatLngBounds | null = null;
   private maxBounds: LatLngBounds | null = null;
   private metricType: MetricType = MetricType.NORMALISED;
+  private url =
+    "https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png";
+  private attribution =
+    "Map tiles by Carto, under CC BY 3.0. Data by OpenStreetMap, under ODbL.";
 
   // Computed properties (written as getters).
-  get regionsMap(): Map<string, Region> {
-    console.log("generating map");
-
-    const result = new Map<string, Region>();
-    this.regions.forEach(region => {
-      result.set(region.areaCode, region);
-    });
-    return result;
+  get options() {
+    return {
+      // onEachFeature: this.onEachFeatureFunction
+    };
   }
-  get reportsMap(): Map<string, Report> {
-    const result = new Map<string, Report>();
-    this.reports.forEach(report => {
-      result.set(report.areaCode, report);
-    });
-    return result;
-  }
-  get choroplethGeoJsonData() {
-    const geoJson = JSON.parse(JSON.stringify(this.geojson));
-    if (!this.regionsCount) {
-      return {};
-    }
-    geoJson.features.forEach(feature => {
-      const oldFeatureProperties = feature.properties;
-      let report: Report | undefined;
-      let region: Region | undefined;
+  get styleFunction() {
+    return f => {
+      const areaCode = f.properties[TOPO_AREA_KEY];
+      const value = this.calculateDisplayValue(areaCode);
+      const fillColor = this.getFillColour(value);
 
-      if (TOPO_AREA_KEY in oldFeatureProperties) {
-        report = this.reportsMap.get(oldFeatureProperties[TOPO_AREA_KEY]);
-        region = this.regionsMap.get(oldFeatureProperties[TOPO_AREA_KEY]);
-      }
-
-      if (!report) {
-        console.warn(
-          `${1586084051}: no report found for ${
-            oldFeatureProperties[TOPO_AREA_KEY]
-          }`
-        );
-        return;
-      }
-      if (!region) {
-        console.warn(
-          `${1586087764}: no region found for ${
-            oldFeatureProperties[TOPO_AREA_KEY]
-          }`
-        );
-        return;
-      }
-
-      // TODO make an interface here that combines the interfaces
-      const newFeatureProperties = {
-        areaCode: report.areaCode,
-        areaName: region.areaName,
-        metricValue: this.getMetricValue(
-          this.metricType,
-          oldFeatureProperties[TOPO_AREA_KEY]
-        )
+      return {
+        weight: 1,
+        color: "#ECEFF1",
+        opacity: 0.8,
+        fillColor,
+        fillOpacity: 0.7
       };
-      feature.properties = newFeatureProperties;
-    });
-
-    return geoJson;
+    };
   }
+  get onEachFeatureFunction() {
+    return (feature, layer) => {
+      const value = this.calculateDisplayValue(
+        this.regions[feature.properties[TOPO_AREA_KEY]]?.areaCode
+      );
 
+      layer.bindTooltip(
+        "<div><strong>" +
+          this.regions[feature.properties[TOPO_AREA_KEY]]?.areaName +
+          "</strong><span> " +
+          Number(value).toFixed(1) +
+          "</span></div>",
+        { permanent: false, sticky: true }
+      );
+    };
+  }
   // Custom methods.
-  private getMetricValue(type: MetricType, areaCode: string): string {
-    // switch statements to get the
-    // this should become a factory if it get too large
-    const report = this.reportsMap.get(areaCode);
-    const region = this.regionsMap.get(areaCode);
+  private calculateDisplayValue(areaCode: string): number {
+    // should become a factory if it get too large
+    const report = this.reports[areaCode];
+    const region = this.regions[areaCode];
     if (!report) {
-      throw new Error(`${1586086552}: report not found`);
-    }
-    if (!region) {
-      throw new Error(`${1586087212}: region not found`);
+      console.warn(`${1586086552}: report not found for ${areaCode}`);
+      return -1;
     }
 
-    switch (type) {
+    switch (this.metricType) {
       case MetricType.NORMALISED:
-        return (
-          (Number(report.metricValue) * 100) / Number(region.population) + ""
-        );
+        if (!region) {
+          console.warn(`${1586087212}: region not found for ${areaCode}`);
+          return -1;
+        }
+        return (Number(report.metricValue) * 100) / Number(region.population);
       case MetricType.ABSOLUTE:
-        return report.metricValue;
+        return Number(report.metricValue);
       default:
         throw new Error(
           `${1586083073}: an error occoured when trying to calculate a value`
         );
     }
   }
-  private async loadData() {
-    this.loading = true;
-
-    this.reports = await api.reports();
-    this.reportsCount = this.reports.length;
-
-    this.regions = await api.regions();
-    this.regionsCount = this.regions.length;
-
-    this.loading = false;
-    console.log("finished loading data");
+  private getFillColour(metricValue: number) {
+    return metricValue > 500
+      ? "#d73027"
+      : metricValue > 200
+      ? "#fc8d59"
+      : metricValue > 100
+      ? "#fee08b"
+      : metricValue > 50
+      ? "#ffffbf"
+      : metricValue > 20
+      ? "#d9ef8b"
+      : metricValue > 10
+      ? "#91cf60"
+      : metricValue >= 0
+      ? "#1a9850"
+      : "#f0f0f0"; // grey for no data
   }
 
-  async generateGeoJson() {
+  private async loadData() {
+    console.info("loading data from the web...");
+    this.loading = true;
+
+    const reports = await api.reports();
+    reports.forEach(report => {
+      this.$set(this.reports, report.areaCode, report);
+    });
+
+    const regions = await api.regions();
+    regions.forEach(region => {
+      this.$set(this.regions, region.areaCode, region);
+    });
+    this.show = true;
+    this.loading = false;
+  }
+  private async generateGeoJson() {
     this.loading = true;
     // set geojson
     // TODO remove the use of 'any' type
+    console.info("parsing topo files...");
     const topoJson: any = await import(
       `../assets/${TOPO_JSON_FILE_AND_OBJECT_NAME}.json`
     );
-    let geo;
+
     try {
       // conver the topo to a geojson for leaflet to use
-      geo = topoClient.feature(
+      const geo: geojson.FeatureCollection = topoClient.feature(
         topoJson,
         topoJson.objects[TOPO_JSON_FILE_AND_OBJECT_NAME]
       );
+      this.geojson = geo;
     } catch (error) {
-      console.log(`${1586000371}: ${error}`);
+      console.error(`${1586000371}: ${error}`);
     }
-    this.geojson = geo;
 
     // set bounds
     const [west, south, east, north] = topoClient.bbox(topoJson);
+    // TODO remove maxBounds in favour of bounds
     this.bounds = this.maxBounds = latLngBounds([
       [south, west],
       [north, east]
     ]);
     this.loading = false;
-    console.log("finished parsing geojson");
   }
-
   // Watchers.
-  // Hooks (lifecycle, custom, etc...).
 
-  mounted() {
-    console.log("mounted");
+  // Hooks (lifecycle, custom, etc...).
+  created() {
     this.generateGeoJson();
     this.loadData();
   }
 }
 </script>
+<style lang="css">
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+#map {
+  width: 600px;
+  height: 400px;
+}
+</style>
