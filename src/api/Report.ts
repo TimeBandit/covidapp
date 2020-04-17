@@ -13,6 +13,6 @@ export interface ReportsParams {
   beforeDate: string;
 }
 export interface Strategy {
-  reports(params?: ReportsParams): Promise<Report[]>;
-  regions(): Promise<Region[]>;
+  getReports(params?: ReportsParams): Promise<Report[]>;
+  getRegions(): Promise<Region[]>;
 }

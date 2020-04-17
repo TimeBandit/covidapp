@@ -136,12 +136,12 @@ export default class Home extends Vue {
     console.info("loading data from the web...");
     this.loading = true;
 
-    const reports = await api.reports();
+    const reports = await api.getReports();
     reports.forEach(report => {
       this.$set(this.reports, report.areaCode, report);
     });
 
-    const regions = await api.regions();
+    const regions = await api.getRegions();
     regions.forEach(region => {
       this.$set(this.regions, region.areaCode, region);
     });
