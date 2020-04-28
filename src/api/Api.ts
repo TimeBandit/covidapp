@@ -8,21 +8,17 @@ const API_KEY = "AIzaSyBNmCyfUnkofe0Jxmf3EnwhJOY5M7MYHgw";
 
 export class Document {
   private static instance: Document | null = null;
-  public static doc: any | null = null;
+  public doc: GoogleSpreadsheet | null = null;
+
+  private constructor(apiKey: string, sheetId: string) {
+    this.doc = new GoogleSpreadsheet(SHEET_ID);
+    this.doc.useApiKey(API_KEY); // TODO restrict in production
+  }
   public static async getInstance(): Promise<Document> {
     if (!Document.instance) {
-      this.doc = new GoogleSpreadsheet(SHEET_ID);
-      this.doc.useApiKey(API_KEY); // TODO restrict in production
-
-      // load document properties and worksheets
-      await this.doc.loadInfo();
-
-      if (!this.doc) {
-        throw new Error("error loading document info");
-      }
-      Document.instance = new Document();
+      Document.instance = new Document(API_KEY, SHEET_ID);
     }
-    return Document;
+    return Document.instance;
   }
 }
 
