@@ -3,8 +3,8 @@ import { Moment } from "moment";
 import { Strategy, ReportsParams } from "./Report";
 import { GoogleSheetsDataStrategy } from "./strategies/google-sheets/GoogleSheetsDataStrategy";
 
-const SHEET_ID = "1ptQxoiLEc2F0_ig47Hg5UcFyUNzpUp5ElFtHBDpuiw4";
-const API_KEY = "AIzaSyBNmCyfUnkofe0Jxmf3EnwhJOY5M7MYHgw";
+const SHEET_ID = "removed";
+const API_KEY = "removed";
 
 export class Document {
   private static instance: Document | null = null;
